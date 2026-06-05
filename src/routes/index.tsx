@@ -30,13 +30,13 @@ const dayBounds = (date: string) => {
 
 function dayMetrics(
   machines: Machine[],
-  events: ReturnType<typeof useEvents>["data"] extends infer T ? Exclude<T, undefined> : never,
+  events: MachineEvent[],
   production: Production[],
   rejections: Rejection[],
   date: string,
 ) {
   const { from, until } = dayBounds(date);
-  const byMachine = new Map<string, typeof events>();
+  const byMachine = new Map<string, MachineEvent[]>();
   for (const e of events) {
     if (!byMachine.has(e.machine_id)) byMachine.set(e.machine_id, []);
     byMachine.get(e.machine_id)!.push(e);
