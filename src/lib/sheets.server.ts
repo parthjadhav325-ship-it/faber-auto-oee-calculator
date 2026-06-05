@@ -108,7 +108,14 @@ export async function deleteRow(sheet: string, rowIndex: number) {
 export async function readObjects<T extends Record<string, string>>(
   sheet: string,
 ): Promise<(T & { _row: number })[]> {
-  const rows = await readRange(`${sheet}!A1:Z`);
+  let rows: string[][] = [];
+  try {
+    rows = await readRange(`${sheet}!A1:Z`);
+  } catch (e) {
+    // Sheet doesn't exist yet — treat as empty.
+    if (String(e).includes("Unable to parse range") || String(e).includes("not found")) return [];
+    throw e;
+  }
   if (rows.length < 2) return [];
   const headers = rows[0];
   const out: (T & { _row: number })[] = [];
