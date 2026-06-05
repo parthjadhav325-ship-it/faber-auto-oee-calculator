@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { RequireRole } from "@/lib/auth";
 import { useState } from "react";
 import { toast } from "sonner";
 import { TopBar } from "@/components/top-bar";
@@ -13,7 +14,7 @@ import { Plus, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/rejection")({
   head: () => ({ meta: [{ title: "Rejection Entry · OEE Control" }] }),
-  component: RejectionEntry,
+  component: () => (<RequireRole roles={["manager","admin"]}><RejectionEntry /></RequireRole>),
 });
 
 function RejectionEntry() {

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { RequireRole } from "@/lib/auth";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Play, Square, X, Activity } from "lucide-react";
@@ -14,7 +15,7 @@ import {
 
 export const Route = createFileRoute("/control")({
   head: () => ({ meta: [{ title: "Machine Control · OEE Control" }] }),
-  component: MachineControl,
+  component: () => (<RequireRole roles={["manager","admin"]}><MachineControl /></RequireRole>),
 });
 
 function fmtDuration(min: number) {

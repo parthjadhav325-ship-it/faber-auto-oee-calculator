@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { RequireRole } from "@/lib/auth";
 import { useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { TopBar } from "@/components/top-bar";
@@ -16,7 +17,7 @@ import {
 
 export const Route = createFileRoute("/monthly")({
   head: () => ({ meta: [{ title: "Monthly Dashboard · OEE Control" }] }),
-  component: MonthlyDashboard,
+  component: () => (<RequireRole roles={["manager","admin"]}><MonthlyDashboard /></RequireRole>),
 });
 
 function MonthlyDashboard() {

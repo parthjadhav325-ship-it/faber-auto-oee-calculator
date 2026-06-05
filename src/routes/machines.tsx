@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { RequireRole } from "@/lib/auth";
 import { useState } from "react";
 import { toast } from "sonner";
 import { TopBar } from "@/components/top-bar";
@@ -12,7 +13,7 @@ import { Pencil, Plus, Trash2, X } from "lucide-react";
 
 export const Route = createFileRoute("/machines")({
   head: () => ({ meta: [{ title: "Machine Master · OEE Control" }] }),
-  component: MachineMaster,
+  component: () => (<RequireRole roles={["admin"]}><MachineMaster /></RequireRole>),
 });
 
 type Form = {
