@@ -10,7 +10,7 @@ import {
   fix, num, pct,
   metricsFromEvents,
   useEvents, useMachines, useProduction, useRejections,
-  type Machine, type Production, type Rejection,
+  type Machine, type MachineEvent, type Production, type Rejection,
 } from "@/lib/oee-data";
 import {
   Activity, Gauge, PackageCheck, Percent, Timer, TrendingUp, Wrench, Zap,
