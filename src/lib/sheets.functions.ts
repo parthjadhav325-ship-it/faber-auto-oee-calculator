@@ -210,7 +210,7 @@ export const deleteRejection = createServerFn({ method: "POST" })
 import { ensureSheet } from "./sheets.server";
 
 const EVENTS_SHEET = "Machine_Events";
-const EVENTS_HEADERS = ["Timestamp", "Machine_ID", "Event_Type", "Reason"];
+const EVENTS_HEADERS = ["Timestamp", "Machine_ID", "Event_Type", "Reason", "Employee_ID", "Remarks"];
 
 export type MachineEventRow = {
   id: string;
@@ -218,12 +218,15 @@ export type MachineEventRow = {
   machine_id: string;
   event_type: "START" | "STOP";
   reason: string;
+  employee_id: string;
+  remarks: string;
 };
 
 export const listEvents = createServerFn({ method: "GET" }).handler(
   async (): Promise<MachineEventRow[]> => {
     const rows = await readObjects<{
       Timestamp: string; Machine_ID: string; Event_Type: string; Reason: string;
+      Employee_ID?: string; Remarks?: string;
     }>(EVENTS_SHEET);
     return rows.map((r) => ({
       id: String(r._row),
@@ -231,19 +234,109 @@ export const listEvents = createServerFn({ method: "GET" }).handler(
       machine_id: r.Machine_ID,
       event_type: (r.Event_Type === "STOP" ? "STOP" : "START") as "START" | "STOP",
       reason: r.Reason || "",
+      employee_id: r.Employee_ID || "",
+      remarks: r.Remarks || "",
     }));
   },
 );
 
 export const addEvent = createServerFn({ method: "POST" })
   .inputValidator((d: {
-    machine_id: string; event_type: "START" | "STOP"; reason?: string;
+    machine_id: string; event_type: "START" | "STOP";
+    reason?: string; employee_id?: string; remarks?: string;
   }) => d)
   .handler(async ({ data }) => {
     await ensureSheet(EVENTS_SHEET, EVENTS_HEADERS);
     const ts = new Date().toISOString();
     await appendRow(EVENTS_SHEET, [
-      ts, data.machine_id, data.event_type, data.reason || "",
+      ts, data.machine_id, data.event_type,
+      data.reason || "", data.employee_id || "", data.remarks || "",
     ]);
     return { timestamp: ts };
+  });
+
+// ===== User Master =====
+const USERS_SHEET = "User_Master";
+const USERS_HEADERS = ["Employee_ID", "Name", "Password", "Role", "Default_Machine_ID"];
+
+export type UserRole = "operator" | "supervisor" | "manager" | "admin";
+export type UserRow = {
+  employee_id: string;
+  name: string;
+  role: UserRole;
+  default_machine_id: string;
+  _row: number;
+};
+
+async function ensureUsersSeed() {
+  await ensureSheet(USERS_SHEET, USERS_HEADERS);
+  const rows = await readObjects<{ Employee_ID: string }>(USERS_SHEET);
+  if (rows.length === 0) {
+    await appendRow(USERS_SHEET, ["admin", "Administrator", "admin", "admin", ""]);
+  }
+}
+
+export const listUsers = createServerFn({ method: "GET" }).handler(
+  async (): Promise<UserRow[]> => {
+    await ensureUsersSeed();
+    const rows = await readObjects<{
+      Employee_ID: string; Name: string; Password: string;
+      Role: string; Default_Machine_ID: string;
+    }>(USERS_SHEET);
+    return rows.map((r) => ({
+      employee_id: r.Employee_ID,
+      name: r.Name,
+      role: (["operator","supervisor","manager","admin"].includes(r.Role)
+        ? r.Role : "operator") as UserRole,
+      default_machine_id: r.Default_Machine_ID || "",
+      _row: r._row,
+    }));
+  },
+);
+
+export const loginUser = createServerFn({ method: "POST" })
+  .inputValidator((d: { employee_id: string; password: string }) => d)
+  .handler(async ({ data }) => {
+    await ensureUsersSeed();
+    const rows = await readObjects<{
+      Employee_ID: string; Name: string; Password: string;
+      Role: string; Default_Machine_ID: string;
+    }>(USERS_SHEET);
+    const u = rows.find(
+      (r) => r.Employee_ID.trim() === data.employee_id.trim()
+        && (r.Password || "") === data.password,
+    );
+    if (!u) throw new Error("Invalid Employee ID or password");
+    return {
+      employee_id: u.Employee_ID,
+      name: u.Name || u.Employee_ID,
+      role: (["operator","supervisor","manager","admin"].includes(u.Role)
+        ? u.Role : "operator") as UserRole,
+      default_machine_id: u.Default_Machine_ID || "",
+    };
+  });
+
+export const saveUser = createServerFn({ method: "POST" })
+  .inputValidator((d: {
+    original_id?: string;
+    employee_id: string; name: string; password: string;
+    role: UserRole; default_machine_id: string;
+  }) => d)
+  .handler(async ({ data }) => {
+    await ensureUsersSeed();
+    const all = await readObjects<{ Employee_ID: string }>(USERS_SHEET);
+    const row = [data.employee_id, data.name, data.password, data.role, data.default_machine_id];
+    const key = data.original_id || data.employee_id;
+    const found = all.find((r) => r.Employee_ID === key);
+    if (found) await updateRow(USERS_SHEET, found._row, row);
+    else await appendRow(USERS_SHEET, row);
+  });
+
+export const deleteUser = createServerFn({ method: "POST" })
+  .inputValidator((d: { employee_id: string }) => d)
+  .handler(async ({ data }) => {
+    const all = await readObjects<{ Employee_ID: string }>(USERS_SHEET);
+    const found = all.find((r) => r.Employee_ID === data.employee_id);
+    if (!found) throw new Error("User not found");
+    await deleteRow(USERS_SHEET, found._row);
   });
