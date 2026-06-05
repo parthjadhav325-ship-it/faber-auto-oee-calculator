@@ -14,7 +14,147 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      downtime_data: {
+        Row: {
+          created_at: string
+          date: string
+          downtime_minutes: number
+          downtime_reason: string
+          id: string
+          machine_id: string
+          shift: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          downtime_minutes: number
+          downtime_reason: string
+          id?: string
+          machine_id: string
+          shift: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          downtime_minutes?: number
+          downtime_reason?: string
+          id?: string
+          machine_id?: string
+          shift?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "downtime_data_machine_id_fkey"
+            columns: ["machine_id"]
+            isOneToOne: false
+            referencedRelation: "machines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      machines: {
+        Row: {
+          created_at: string
+          id: string
+          ideal_cycle_time_seconds: number
+          line: string
+          machine_code: string
+          machine_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ideal_cycle_time_seconds: number
+          line: string
+          machine_code: string
+          machine_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ideal_cycle_time_seconds?: number
+          line?: string
+          machine_code?: string
+          machine_name?: string
+        }
+        Relationships: []
+      }
+      production_data: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          machine_id: string
+          output_qty: number
+          planned_time_minutes: number
+          shift: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          machine_id: string
+          output_qty: number
+          planned_time_minutes: number
+          shift: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          machine_id?: string
+          output_qty?: number
+          planned_time_minutes?: number
+          shift?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_data_machine_id_fkey"
+            columns: ["machine_id"]
+            isOneToOne: false
+            referencedRelation: "machines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rejection_data: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          machine_id: string
+          reject_qty: number
+          reject_reason: string | null
+          shift: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          machine_id: string
+          reject_qty: number
+          reject_reason?: string | null
+          shift: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          machine_id?: string
+          reject_qty?: number
+          reject_reason?: string | null
+          shift?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rejection_data_machine_id_fkey"
+            columns: ["machine_id"]
+            isOneToOne: false
+            referencedRelation: "machines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
