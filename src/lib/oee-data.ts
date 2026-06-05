@@ -260,8 +260,10 @@ export function useEvents() {
 export function useAddEvent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (row: { machine_id: string; event_type: "START" | "STOP"; reason?: string }) =>
-      sheets.addEvent({ data: row }),
+    mutationFn: (row: {
+      machine_id: string; event_type: "START" | "STOP";
+      reason?: string; employee_id?: string; remarks?: string;
+    }) => sheets.addEvent({ data: row }),
     onSuccess: () => qc.invalidateQueries({ queryKey: eventsKey }),
   });
 }

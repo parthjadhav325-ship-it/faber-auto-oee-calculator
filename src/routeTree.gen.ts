@@ -9,14 +9,24 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SupervisorRouteImport } from './routes/supervisor'
 import { Route as RejectionRouteImport } from './routes/rejection'
 import { Route as ProductionRouteImport } from './routes/production'
 import { Route as PlantRouteImport } from './routes/plant'
+import { Route as OperatorRouteImport } from './routes/operator'
 import { Route as MonthlyRouteImport } from './routes/monthly'
 import { Route as MachinesRouteImport } from './routes/machines'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as ControlRouteImport } from './routes/control'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as OperatorMachineIdRouteImport } from './routes/operator.$machineId'
+import { Route as AdminUsersRouteImport } from './routes/admin.users'
 
+const SupervisorRoute = SupervisorRouteImport.update({
+  id: '/supervisor',
+  path: '/supervisor',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RejectionRoute = RejectionRouteImport.update({
   id: '/rejection',
   path: '/rejection',
@@ -32,6 +42,11 @@ const PlantRoute = PlantRouteImport.update({
   path: '/plant',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OperatorRoute = OperatorRouteImport.update({
+  id: '/operator',
+  path: '/operator',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MonthlyRoute = MonthlyRouteImport.update({
   id: '/monthly',
   path: '/monthly',
@@ -40,6 +55,11 @@ const MonthlyRoute = MonthlyRouteImport.update({
 const MachinesRoute = MachinesRouteImport.update({
   id: '/machines',
   path: '/machines',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ControlRoute = ControlRouteImport.update({
@@ -52,77 +72,128 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OperatorMachineIdRoute = OperatorMachineIdRouteImport.update({
+  id: '/$machineId',
+  path: '/$machineId',
+  getParentRoute: () => OperatorRoute,
+} as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/admin/users',
+  path: '/admin/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/control': typeof ControlRoute
+  '/login': typeof LoginRoute
   '/machines': typeof MachinesRoute
   '/monthly': typeof MonthlyRoute
+  '/operator': typeof OperatorRouteWithChildren
   '/plant': typeof PlantRoute
   '/production': typeof ProductionRoute
   '/rejection': typeof RejectionRoute
+  '/supervisor': typeof SupervisorRoute
+  '/admin/users': typeof AdminUsersRoute
+  '/operator/$machineId': typeof OperatorMachineIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/control': typeof ControlRoute
+  '/login': typeof LoginRoute
   '/machines': typeof MachinesRoute
   '/monthly': typeof MonthlyRoute
+  '/operator': typeof OperatorRouteWithChildren
   '/plant': typeof PlantRoute
   '/production': typeof ProductionRoute
   '/rejection': typeof RejectionRoute
+  '/supervisor': typeof SupervisorRoute
+  '/admin/users': typeof AdminUsersRoute
+  '/operator/$machineId': typeof OperatorMachineIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/control': typeof ControlRoute
+  '/login': typeof LoginRoute
   '/machines': typeof MachinesRoute
   '/monthly': typeof MonthlyRoute
+  '/operator': typeof OperatorRouteWithChildren
   '/plant': typeof PlantRoute
   '/production': typeof ProductionRoute
   '/rejection': typeof RejectionRoute
+  '/supervisor': typeof SupervisorRoute
+  '/admin/users': typeof AdminUsersRoute
+  '/operator/$machineId': typeof OperatorMachineIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/control'
+    | '/login'
     | '/machines'
     | '/monthly'
+    | '/operator'
     | '/plant'
     | '/production'
     | '/rejection'
+    | '/supervisor'
+    | '/admin/users'
+    | '/operator/$machineId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/control'
+    | '/login'
     | '/machines'
     | '/monthly'
+    | '/operator'
     | '/plant'
     | '/production'
     | '/rejection'
+    | '/supervisor'
+    | '/admin/users'
+    | '/operator/$machineId'
   id:
     | '__root__'
     | '/'
     | '/control'
+    | '/login'
     | '/machines'
     | '/monthly'
+    | '/operator'
     | '/plant'
     | '/production'
     | '/rejection'
+    | '/supervisor'
+    | '/admin/users'
+    | '/operator/$machineId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ControlRoute: typeof ControlRoute
+  LoginRoute: typeof LoginRoute
   MachinesRoute: typeof MachinesRoute
   MonthlyRoute: typeof MonthlyRoute
+  OperatorRoute: typeof OperatorRouteWithChildren
   PlantRoute: typeof PlantRoute
   ProductionRoute: typeof ProductionRoute
   RejectionRoute: typeof RejectionRoute
+  SupervisorRoute: typeof SupervisorRoute
+  AdminUsersRoute: typeof AdminUsersRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/supervisor': {
+      id: '/supervisor'
+      path: '/supervisor'
+      fullPath: '/supervisor'
+      preLoaderRoute: typeof SupervisorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rejection': {
       id: '/rejection'
       path: '/rejection'
@@ -144,6 +215,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlantRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/operator': {
+      id: '/operator'
+      path: '/operator'
+      fullPath: '/operator'
+      preLoaderRoute: typeof OperatorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/monthly': {
       id: '/monthly'
       path: '/monthly'
@@ -156,6 +234,13 @@ declare module '@tanstack/react-router' {
       path: '/machines'
       fullPath: '/machines'
       preLoaderRoute: typeof MachinesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/control': {
@@ -172,28 +257,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/operator/$machineId': {
+      id: '/operator/$machineId'
+      path: '/$machineId'
+      fullPath: '/operator/$machineId'
+      preLoaderRoute: typeof OperatorMachineIdRouteImport
+      parentRoute: typeof OperatorRoute
+    }
+    '/admin/users': {
+      id: '/admin/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
+
+interface OperatorRouteChildren {
+  OperatorMachineIdRoute: typeof OperatorMachineIdRoute
+}
+
+const OperatorRouteChildren: OperatorRouteChildren = {
+  OperatorMachineIdRoute: OperatorMachineIdRoute,
+}
+
+const OperatorRouteWithChildren = OperatorRoute._addFileChildren(
+  OperatorRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ControlRoute: ControlRoute,
+  LoginRoute: LoginRoute,
   MachinesRoute: MachinesRoute,
   MonthlyRoute: MonthlyRoute,
+  OperatorRoute: OperatorRouteWithChildren,
   PlantRoute: PlantRoute,
   ProductionRoute: ProductionRoute,
   RejectionRoute: RejectionRoute,
+  SupervisorRoute: SupervisorRoute,
+  AdminUsersRoute: AdminUsersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

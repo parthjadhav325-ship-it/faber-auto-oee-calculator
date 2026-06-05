@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { RequireRole } from "@/lib/auth";
 import { useMemo } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { TopBar } from "@/components/top-bar";
@@ -16,7 +17,7 @@ import {
 
 export const Route = createFileRoute("/plant")({
   head: () => ({ meta: [{ title: "Plant Summary · OEE Control" }] }),
-  component: PlantSummary,
+  component: () => (<RequireRole roles={["manager","admin"]}><PlantSummary /></RequireRole>),
 });
 
 function PlantSummary() {

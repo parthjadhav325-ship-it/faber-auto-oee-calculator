@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -13,6 +14,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppSidebar } from "../components/app-sidebar";
 import { Toaster } from "../components/ui/sonner";
+import { AuthProvider, useAuth } from "../lib/auth";
 
 function NotFoundComponent() {
   return (
@@ -85,13 +87,29 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen flex w-full bg-background text-foreground">
-        <AppSidebar />
-        <main className="flex-1 min-w-0 flex flex-col">
-          <Outlet />
-        </main>
-      </div>
+      <AuthProvider>
+        <Shell />
+      </AuthProvider>
       <Toaster />
     </QueryClientProvider>
+  );
+}
+
+function Shell() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { user } = useAuth();
+  // Hide sidebar for login, operator console, and operator role
+  const hideSidebar =
+    pathname === "/login" ||
+    pathname.startsWith("/operator") ||
+    user?.role === "operator";
+
+  return (
+    <div className="min-h-screen flex w-full bg-background text-foreground">
+      {!hideSidebar && <AppSidebar />}
+      <main className="flex-1 min-w-0 flex flex-col">
+        <Outlet />
+      </main>
+    </div>
   );
 }

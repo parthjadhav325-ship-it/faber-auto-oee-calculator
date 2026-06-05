@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { RequireRole } from "@/lib/auth";
 import { useMemo, useState } from "react";
 import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart,
@@ -18,7 +19,7 @@ import {
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [{ title: "Daily Dashboard · OEE Control" }] }),
-  component: DailyDashboard,
+  component: () => (<RequireRole roles={["manager","admin"]}><DailyDashboard /></RequireRole>),
 });
 
 const dayBounds = (date: string) => {
