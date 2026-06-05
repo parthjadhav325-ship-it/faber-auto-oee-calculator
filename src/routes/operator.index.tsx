@@ -3,7 +3,7 @@ import { useMachines } from "@/lib/oee-data";
 import { RequireRole, useAuth } from "@/lib/auth";
 import { LogOut, Factory } from "lucide-react";
 
-export const Route = createFileRoute("/operator")({
+export const Route = createFileRoute("/operator/")({
   head: () => ({ meta: [{ title: "Operator Portal · OEE Control" }] }),
   component: () => (
     <RequireRole roles={["operator", "supervisor", "manager", "admin"]}>
