@@ -1,7 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { toast } from "sonner";
 import { TopBar } from "@/components/top-bar";
-import { useOEE } from "@/lib/oee-store";
+import {
+  useMachines,
+  useProduction,
+  useAddProduction,
+  useDeleteProduction,
+  type Shift,
+} from "@/lib/oee-data";
 import { Plus, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/production")({
@@ -10,17 +17,33 @@ export const Route = createFileRoute("/production")({
 });
 
 function ProductionEntry() {
-  const machines = useOEE((s) => s.machines);
-  const production = useOEE((s) => s.production);
-  const addProduction = useOEE((s) => s.addProduction);
-  const del = useOEE((s) => s.deleteProduction);
+  const { data: machines = [] } = useMachines();
+  const { data: production = [] } = useProduction();
+  const addM = useAddProduction();
+  const delM = useDeleteProduction();
   const today = new Date().toISOString().slice(0, 10);
-  const [form, setForm] = useState({ date: today, machineId: machines[0]?.id || "", shift: "A" as "A"|"B"|"C", goodParts: 0, totalParts: 0, runtimeMin: 0 });
+  const [form, setForm] = useState({
+    date: today,
+    machine_id: "",
+    shift: "A" as Shift,
+    planned_time_minutes: 480,
+    output_qty: 0,
+  });
+  const machineId = form.machine_id || machines[0]?.id || "";
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.machineId) return;
-    addProduction(form);
-    setForm({ ...form, goodParts: 0, totalParts: 0, runtimeMin: 0 });
+    if (!machineId) return toast.error("Add a machine first");
+    addM.mutate(
+      { ...form, machine_id: machineId },
+      {
+        onSuccess: () => {
+          toast.success("Production recorded");
+          setForm({ ...form, machine_id: machineId, output_qty: 0 });
+        },
+        onError: (err) => toast.error(err.message),
+      },
+    );
   };
   const byId = Object.fromEntries(machines.map((m) => [m.id, m]));
 
@@ -32,8 +55,8 @@ function ProductionEntry() {
           <h3 className="text-sm font-semibold mb-2">New Entry</h3>
           <Field label="Date"><input type="date" className="input tabular" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></Field>
           <Field label="Machine">
-            <select className="input" value={form.machineId} onChange={(e) => setForm({ ...form, machineId: e.target.value })}>
-              {machines.map((m) => <option key={m.id} value={m.id}>{m.code} — {m.name}</option>)}
+            <select className="input" value={machineId} onChange={(e) => setForm({ ...form, machine_id: e.target.value })}>
+              {machines.map((m) => <option key={m.id} value={m.id}>{m.machine_code} — {m.machine_name}</option>)}
             </select>
           </Field>
           <Field label="Shift">
@@ -43,12 +66,15 @@ function ProductionEntry() {
               ))}
             </div>
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Good Parts"><input type="number" className="input tabular" value={form.goodParts} onChange={(e) => setForm({ ...form, goodParts: +e.target.value })} /></Field>
-            <Field label="Total Parts"><input type="number" className="input tabular" value={form.totalParts} onChange={(e) => setForm({ ...form, totalParts: +e.target.value })} /></Field>
-          </div>
-          <Field label="Runtime (minutes)"><input type="number" className="input tabular" value={form.runtimeMin} onChange={(e) => setForm({ ...form, runtimeMin: +e.target.value })} /></Field>
-          <button type="submit" className="w-full inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-md py-2 text-sm font-medium hover:opacity-90"><Plus className="size-4" />Record Production</button>
+          <Field label="Planned Production Time (minutes)">
+            <input type="number" min={0} className="input tabular" value={form.planned_time_minutes} onChange={(e) => setForm({ ...form, planned_time_minutes: +e.target.value })} />
+          </Field>
+          <Field label="Output Quantity (parts)">
+            <input type="number" min={0} className="input tabular" value={form.output_qty} onChange={(e) => setForm({ ...form, output_qty: +e.target.value })} />
+          </Field>
+          <button type="submit" disabled={addM.isPending} className="w-full inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-md py-2 text-sm font-medium hover:opacity-90 disabled:opacity-60">
+            <Plus className="size-4" />{addM.isPending ? "Saving…" : "Record Production"}
+          </button>
         </form>
 
         <div className="panel overflow-hidden lg:col-span-2">
@@ -63,24 +89,25 @@ function ProductionEntry() {
                   <th className="text-left px-5 py-3">Date</th>
                   <th className="text-left px-5 py-3">Machine</th>
                   <th className="text-center px-5 py-3">Shift</th>
-                  <th className="text-right px-5 py-3">Good</th>
-                  <th className="text-right px-5 py-3">Total</th>
-                  <th className="text-right px-5 py-3">Runtime</th>
+                  <th className="text-right px-5 py-3">Planned (min)</th>
+                  <th className="text-right px-5 py-3">Output</th>
                   <th className="text-right px-5 py-3"></th>
                 </tr>
               </thead>
               <tbody>
-                {production.slice(0, 50).map((p) => (
+                {production.slice(0, 100).map((p) => (
                   <tr key={p.id} className="border-t border-border hover:bg-accent/30">
                     <td className="px-5 py-3 tabular">{p.date}</td>
-                    <td className="px-5 py-3">{byId[p.machineId]?.code || "—"}</td>
+                    <td className="px-5 py-3">{byId[p.machine_id]?.machine_code || "—"}</td>
                     <td className="px-5 py-3 text-center">{p.shift}</td>
-                    <td className="px-5 py-3 text-right tabular text-success">{p.goodParts.toLocaleString()}</td>
-                    <td className="px-5 py-3 text-right tabular">{p.totalParts.toLocaleString()}</td>
-                    <td className="px-5 py-3 text-right tabular text-muted-foreground">{p.runtimeMin}m</td>
-                    <td className="px-5 py-3 text-right"><button onClick={() => del(p.id)} className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></button></td>
+                    <td className="px-5 py-3 text-right tabular text-muted-foreground">{Number(p.planned_time_minutes)}</td>
+                    <td className="px-5 py-3 text-right tabular text-success">{Number(p.output_qty).toLocaleString()}</td>
+                    <td className="px-5 py-3 text-right"><button onClick={() => delM.mutate(p.id)} className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></button></td>
                   </tr>
                 ))}
+                {production.length === 0 && (
+                  <tr><td colSpan={6} className="px-5 py-12 text-center text-muted-foreground">No production recorded yet</td></tr>
+                )}
               </tbody>
             </table>
           </div>
