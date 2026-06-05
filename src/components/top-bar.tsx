@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 
 export function TopBar({ title, subtitle, right }: { title: string; subtitle?: string; right?: React.ReactNode }) {
-  const [now, setNow] = useState(new Date());
+  const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
+    setNow(new Date());
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
@@ -15,8 +16,9 @@ export function TopBar({ title, subtitle, right }: { title: string; subtitle?: s
       <div className="flex items-center gap-4">
         {right}
         <div className="text-right tabular text-xs leading-tight">
-          <div className="text-foreground">{now.toLocaleTimeString()}</div>
-          <div className="text-muted-foreground">{now.toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}</div>
+          <div className="text-foreground">{now ? now.toLocaleTimeString() : "—"}</div>
+          <div className="text-muted-foreground">{now ? now.toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "short", year: "numeric" }) : "\u00a0"}</div>
+
         </div>
       </div>
     </header>
