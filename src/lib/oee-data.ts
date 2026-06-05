@@ -368,3 +368,43 @@ export function metricsFromEvents(
     byReason,
   };
 }
+
+// Convert chronological events into Downtime rows (STOP → next START intervals).
+// Ongoing stops (no closing START yet) are counted up to "now".
+export function downtimeFromEvents(events: MachineEvent[]): Downtime[] {
+  const byMachine = new Map<string, MachineEvent[]>();
+  for (const e of events) {
+    if (!byMachine.has(e.machine_id)) byMachine.set(e.machine_id, []);
+    byMachine.get(e.machine_id)!.push(e);
+  }
+  const out: Downtime[] = [];
+  const now = new Date();
+  const shiftOf = (d: Date): Shift => {
+    const h = d.getHours();
+    if (h >= 6 && h < 14) return "A";
+    if (h >= 14 && h < 22) return "B";
+    return "C";
+  };
+  let counter = 0;
+  for (const [mid, evs] of byMachine) {
+    const sorted = [...evs].sort((a, b) => (a.timestamp < b.timestamp ? -1 : 1));
+    for (let i = 0; i < sorted.length; i++) {
+      const e = sorted[i];
+      if (e.event_type !== "STOP") continue;
+      const next = sorted.slice(i + 1).find((x) => x.event_type === "START");
+      const start = new Date(e.timestamp);
+      const end = next ? new Date(next.timestamp) : now;
+      const minutes = Math.max(0, (end.getTime() - start.getTime()) / 60000);
+      if (minutes <= 0) continue;
+      out.push({
+        id: `evt-${e.id}-${++counter}`,
+        date: start.toISOString().slice(0, 10),
+        shift: shiftOf(start),
+        machine_id: mid,
+        downtime_reason: e.reason || "Other",
+        downtime_minutes: minutes,
+      });
+    }
+  }
+  return out;
+}
