@@ -15,6 +15,7 @@ import { Route as PlantRouteImport } from './routes/plant'
 import { Route as MonthlyRouteImport } from './routes/monthly'
 import { Route as MachinesRouteImport } from './routes/machines'
 import { Route as DowntimeRouteImport } from './routes/downtime'
+import { Route as ControlRouteImport } from './routes/control'
 import { Route as IndexRouteImport } from './routes/index'
 
 const RejectionRoute = RejectionRouteImport.update({
@@ -47,6 +48,11 @@ const DowntimeRoute = DowntimeRouteImport.update({
   path: '/downtime',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ControlRoute = ControlRouteImport.update({
+  id: '/control',
+  path: '/control',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -55,6 +61,7 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/control': typeof ControlRoute
   '/downtime': typeof DowntimeRoute
   '/machines': typeof MachinesRoute
   '/monthly': typeof MonthlyRoute
@@ -64,6 +71,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/control': typeof ControlRoute
   '/downtime': typeof DowntimeRoute
   '/machines': typeof MachinesRoute
   '/monthly': typeof MonthlyRoute
@@ -74,6 +82,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/control': typeof ControlRoute
   '/downtime': typeof DowntimeRoute
   '/machines': typeof MachinesRoute
   '/monthly': typeof MonthlyRoute
@@ -85,6 +94,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/control'
     | '/downtime'
     | '/machines'
     | '/monthly'
@@ -94,6 +104,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/control'
     | '/downtime'
     | '/machines'
     | '/monthly'
@@ -103,6 +114,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/control'
     | '/downtime'
     | '/machines'
     | '/monthly'
@@ -113,6 +125,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ControlRoute: typeof ControlRoute
   DowntimeRoute: typeof DowntimeRoute
   MachinesRoute: typeof MachinesRoute
   MonthlyRoute: typeof MonthlyRoute
@@ -165,6 +178,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DowntimeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/control': {
+      id: '/control'
+      path: '/control'
+      fullPath: '/control'
+      preLoaderRoute: typeof ControlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -177,6 +197,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ControlRoute: ControlRoute,
   DowntimeRoute: DowntimeRoute,
   MachinesRoute: MachinesRoute,
   MonthlyRoute: MonthlyRoute,
@@ -187,3 +208,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
