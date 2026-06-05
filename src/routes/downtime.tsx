@@ -1,7 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { toast } from "sonner";
 import { TopBar } from "@/components/top-bar";
-import { useOEE, type Downtime } from "@/lib/oee-store";
+import {
+  useMachines,
+  useDowntime,
+  useAddDowntime,
+  useDeleteDowntime,
+  type Shift,
+} from "@/lib/oee-data";
 import { Plus, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/downtime")({
@@ -9,20 +16,35 @@ export const Route = createFileRoute("/downtime")({
   component: DowntimeEntry,
 });
 
-const cats: Downtime["category"][] = ["Breakdown","Changeover","Material","Quality","Other"];
-
 function DowntimeEntry() {
-  const machines = useOEE((s) => s.machines);
-  const downtime = useOEE((s) => s.downtime);
-  const add = useOEE((s) => s.addDowntime);
-  const del = useOEE((s) => s.deleteDowntime);
+  const { data: machines = [] } = useMachines();
+  const { data: downtime = [] } = useDowntime();
+  const addM = useAddDowntime();
+  const delM = useDeleteDowntime();
   const today = new Date().toISOString().slice(0, 10);
-  const [form, setForm] = useState<Omit<Downtime,"id">>({ date: today, machineId: machines[0]?.id || "", shift: "A", reason: "", category: "Breakdown", minutes: 0 });
+  const [form, setForm] = useState({
+    date: today,
+    machine_id: "",
+    shift: "A" as Shift,
+    downtime_reason: "",
+    downtime_minutes: 0,
+  });
+  const machineId = form.machine_id || machines[0]?.id || "";
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.machineId || !form.reason) return;
-    add(form);
-    setForm({ ...form, reason: "", minutes: 0 });
+    if (!machineId) return toast.error("Add a machine first");
+    if (!form.downtime_reason) return toast.error("Enter a reason");
+    addM.mutate(
+      { ...form, machine_id: machineId },
+      {
+        onSuccess: () => {
+          toast.success("Downtime recorded");
+          setForm({ ...form, machine_id: machineId, downtime_reason: "", downtime_minutes: 0 });
+        },
+        onError: (err) => toast.error(err.message),
+      },
+    );
   };
   const byId = Object.fromEntries(machines.map((m) => [m.id, m]));
 
@@ -34,8 +56,8 @@ function DowntimeEntry() {
           <h3 className="text-sm font-semibold mb-2">Log Downtime</h3>
           <Field label="Date"><input type="date" className="input tabular" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></Field>
           <Field label="Machine">
-            <select className="input" value={form.machineId} onChange={(e) => setForm({ ...form, machineId: e.target.value })}>
-              {machines.map((m) => <option key={m.id} value={m.id}>{m.code} — {m.name}</option>)}
+            <select className="input" value={machineId} onChange={(e) => setForm({ ...form, machine_id: e.target.value })}>
+              {machines.map((m) => <option key={m.id} value={m.id}>{m.machine_code} — {m.machine_name}</option>)}
             </select>
           </Field>
           <Field label="Shift">
@@ -45,14 +67,11 @@ function DowntimeEntry() {
               ))}
             </div>
           </Field>
-          <Field label="Category">
-            <select className="input" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as Downtime["category"] })}>
-              {cats.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </Field>
-          <Field label="Reason"><input className="input" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} placeholder="e.g. Tool change" /></Field>
-          <Field label="Duration (minutes)"><input type="number" className="input tabular" value={form.minutes} onChange={(e) => setForm({ ...form, minutes: +e.target.value })} /></Field>
-          <button type="submit" className="w-full inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-md py-2 text-sm font-medium hover:opacity-90"><Plus className="size-4" />Record Downtime</button>
+          <Field label="Reason"><input className="input" value={form.downtime_reason} onChange={(e) => setForm({ ...form, downtime_reason: e.target.value })} placeholder="e.g. Tool change, Breakdown" /></Field>
+          <Field label="Duration (minutes)"><input type="number" min={0} className="input tabular" value={form.downtime_minutes} onChange={(e) => setForm({ ...form, downtime_minutes: +e.target.value })} /></Field>
+          <button type="submit" disabled={addM.isPending} className="w-full inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-md py-2 text-sm font-medium hover:opacity-90 disabled:opacity-60">
+            <Plus className="size-4" />{addM.isPending ? "Saving…" : "Record Downtime"}
+          </button>
         </form>
 
         <div className="panel overflow-hidden lg:col-span-2">
@@ -67,24 +86,25 @@ function DowntimeEntry() {
                   <th className="text-left px-5 py-3">Date</th>
                   <th className="text-left px-5 py-3">Machine</th>
                   <th className="text-center px-5 py-3">Shift</th>
-                  <th className="text-left px-5 py-3">Category</th>
                   <th className="text-left px-5 py-3">Reason</th>
                   <th className="text-right px-5 py-3">Mins</th>
                   <th className="text-right px-5 py-3"></th>
                 </tr>
               </thead>
               <tbody>
-                {downtime.slice(0, 50).map((d) => (
+                {downtime.slice(0, 100).map((d) => (
                   <tr key={d.id} className="border-t border-border hover:bg-accent/30">
                     <td className="px-5 py-3 tabular">{d.date}</td>
-                    <td className="px-5 py-3">{byId[d.machineId]?.code || "—"}</td>
+                    <td className="px-5 py-3">{byId[d.machine_id]?.machine_code || "—"}</td>
                     <td className="px-5 py-3 text-center">{d.shift}</td>
-                    <td className="px-5 py-3"><span className="text-xs px-2 py-0.5 rounded bg-muted">{d.category}</span></td>
-                    <td className="px-5 py-3 text-muted-foreground">{d.reason}</td>
-                    <td className="px-5 py-3 text-right tabular text-destructive">{d.minutes}</td>
-                    <td className="px-5 py-3 text-right"><button onClick={() => del(d.id)} className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></button></td>
+                    <td className="px-5 py-3 text-muted-foreground">{d.downtime_reason}</td>
+                    <td className="px-5 py-3 text-right tabular text-destructive">{Number(d.downtime_minutes)}</td>
+                    <td className="px-5 py-3 text-right"><button onClick={() => delM.mutate(d.id)} className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></button></td>
                   </tr>
                 ))}
+                {downtime.length === 0 && (
+                  <tr><td colSpan={6} className="px-5 py-12 text-center text-muted-foreground">No downtime recorded</td></tr>
+                )}
               </tbody>
             </table>
           </div>

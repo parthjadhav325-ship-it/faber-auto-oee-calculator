@@ -1,7 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { toast } from "sonner";
 import { TopBar } from "@/components/top-bar";
-import { useOEE, type Rejection } from "@/lib/oee-store";
+import {
+  useMachines,
+  useRejections,
+  useAddRejection,
+  useDeleteRejection,
+  type Shift,
+} from "@/lib/oee-data";
 import { Plus, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/rejection")({
@@ -10,17 +17,33 @@ export const Route = createFileRoute("/rejection")({
 });
 
 function RejectionEntry() {
-  const machines = useOEE((s) => s.machines);
-  const rejections = useOEE((s) => s.rejections);
-  const add = useOEE((s) => s.addRejection);
-  const del = useOEE((s) => s.deleteRejection);
+  const { data: machines = [] } = useMachines();
+  const { data: rejections = [] } = useRejections();
+  const addM = useAddRejection();
+  const delM = useDeleteRejection();
   const today = new Date().toISOString().slice(0, 10);
-  const [form, setForm] = useState<Omit<Rejection,"id">>({ date: today, machineId: machines[0]?.id || "", shift: "A", defect: "", quantity: 0 });
+  const [form, setForm] = useState({
+    date: today,
+    machine_id: "",
+    shift: "A" as Shift,
+    reject_qty: 0,
+    reject_reason: "" as string,
+  });
+  const machineId = form.machine_id || machines[0]?.id || "";
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.machineId || !form.defect) return;
-    add(form);
-    setForm({ ...form, defect: "", quantity: 0 });
+    if (!machineId) return toast.error("Add a machine first");
+    addM.mutate(
+      { ...form, machine_id: machineId, reject_reason: form.reject_reason || null },
+      {
+        onSuccess: () => {
+          toast.success("Rejection recorded");
+          setForm({ ...form, machine_id: machineId, reject_qty: 0, reject_reason: "" });
+        },
+        onError: (err) => toast.error(err.message),
+      },
+    );
   };
   const byId = Object.fromEntries(machines.map((m) => [m.id, m]));
 
@@ -32,8 +55,8 @@ function RejectionEntry() {
           <h3 className="text-sm font-semibold mb-2">New Rejection</h3>
           <Field label="Date"><input type="date" className="input tabular" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></Field>
           <Field label="Machine">
-            <select className="input" value={form.machineId} onChange={(e) => setForm({ ...form, machineId: e.target.value })}>
-              {machines.map((m) => <option key={m.id} value={m.id}>{m.code} — {m.name}</option>)}
+            <select className="input" value={machineId} onChange={(e) => setForm({ ...form, machine_id: e.target.value })}>
+              {machines.map((m) => <option key={m.id} value={m.id}>{m.machine_code} — {m.machine_name}</option>)}
             </select>
           </Field>
           <Field label="Shift">
@@ -43,9 +66,11 @@ function RejectionEntry() {
               ))}
             </div>
           </Field>
-          <Field label="Defect Type"><input className="input" value={form.defect} onChange={(e) => setForm({ ...form, defect: e.target.value })} placeholder="e.g. Surface scratch" /></Field>
-          <Field label="Quantity"><input type="number" className="input tabular" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: +e.target.value })} /></Field>
-          <button type="submit" className="w-full inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-md py-2 text-sm font-medium hover:opacity-90"><Plus className="size-4" />Record Rejection</button>
+          <Field label="Reject Quantity"><input type="number" min={0} className="input tabular" value={form.reject_qty} onChange={(e) => setForm({ ...form, reject_qty: +e.target.value })} /></Field>
+          <Field label="Defect / Reason (optional)"><input className="input" value={form.reject_reason} onChange={(e) => setForm({ ...form, reject_reason: e.target.value })} placeholder="e.g. Surface scratch" /></Field>
+          <button type="submit" disabled={addM.isPending} className="w-full inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-md py-2 text-sm font-medium hover:opacity-90 disabled:opacity-60">
+            <Plus className="size-4" />{addM.isPending ? "Saving…" : "Record Rejection"}
+          </button>
         </form>
 
         <div className="panel overflow-hidden lg:col-span-2">
@@ -60,22 +85,25 @@ function RejectionEntry() {
                   <th className="text-left px-5 py-3">Date</th>
                   <th className="text-left px-5 py-3">Machine</th>
                   <th className="text-center px-5 py-3">Shift</th>
-                  <th className="text-left px-5 py-3">Defect</th>
+                  <th className="text-left px-5 py-3">Reason</th>
                   <th className="text-right px-5 py-3">Qty</th>
                   <th className="text-right px-5 py-3"></th>
                 </tr>
               </thead>
               <tbody>
-                {rejections.slice(0, 50).map((r) => (
+                {rejections.slice(0, 100).map((r) => (
                   <tr key={r.id} className="border-t border-border hover:bg-accent/30">
                     <td className="px-5 py-3 tabular">{r.date}</td>
-                    <td className="px-5 py-3">{byId[r.machineId]?.code || "—"}</td>
+                    <td className="px-5 py-3">{byId[r.machine_id]?.machine_code || "—"}</td>
                     <td className="px-5 py-3 text-center">{r.shift}</td>
-                    <td className="px-5 py-3 text-muted-foreground">{r.defect}</td>
-                    <td className="px-5 py-3 text-right tabular text-destructive">{r.quantity}</td>
-                    <td className="px-5 py-3 text-right"><button onClick={() => del(r.id)} className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></button></td>
+                    <td className="px-5 py-3 text-muted-foreground">{r.reject_reason || "—"}</td>
+                    <td className="px-5 py-3 text-right tabular text-destructive">{Number(r.reject_qty)}</td>
+                    <td className="px-5 py-3 text-right"><button onClick={() => delM.mutate(r.id)} className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></button></td>
                   </tr>
                 ))}
+                {rejections.length === 0 && (
+                  <tr><td colSpan={6} className="px-5 py-12 text-center text-muted-foreground">No rejections recorded</td></tr>
+                )}
               </tbody>
             </table>
           </div>

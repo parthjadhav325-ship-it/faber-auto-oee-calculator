@@ -3,7 +3,16 @@ import { useMemo } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { TopBar } from "@/components/top-bar";
 import { KpiCard } from "@/components/kpi-card";
-import { computeOEE, num, pct, useOEE } from "@/lib/oee-store";
+import {
+  computeMetrics,
+  fix,
+  num,
+  pct,
+  useDowntime,
+  useMachines,
+  useProduction,
+  useRejections,
+} from "@/lib/oee-data";
 
 export const Route = createFileRoute("/plant")({
   head: () => ({ meta: [{ title: "Plant Summary · OEE Control" }] }),
@@ -11,21 +20,24 @@ export const Route = createFileRoute("/plant")({
 });
 
 function PlantSummary() {
-  const machines = useOEE((s) => s.machines);
-  const production = useOEE((s) => s.production);
-  const downtime = useOEE((s) => s.downtime);
-  const rejections = useOEE((s) => s.rejections);
+  const { data: machines = [] } = useMachines();
+  const { data: production = [] } = useProduction();
+  const { data: downtime = [] } = useDowntime();
+  const { data: rejections = [] } = useRejections();
   const machinesById = useMemo(() => Object.fromEntries(machines.map((m) => [m.id, m])), [machines]);
 
-  const overall = useMemo(() => computeOEE(production, machinesById), [production, machinesById]);
+  const overall = useMemo(() => computeMetrics(production, downtime, rejections, machinesById),
+    [production, downtime, rejections, machinesById]);
 
   const lines = useMemo(() => {
     const lineMap: Record<string, typeof machines> = {};
     machines.forEach((m) => { (lineMap[m.line] ||= []).push(m); });
     return Object.entries(lineMap).map(([line, ms]) => {
       const ids = new Set(ms.map((m) => m.id));
-      const rows = production.filter((p) => ids.has(p.machineId));
-      const m = computeOEE(rows, machinesById);
+      const p = production.filter((x) => ids.has(x.machine_id));
+      const d = downtime.filter((x) => ids.has(x.machine_id));
+      const r = rejections.filter((x) => ids.has(x.machine_id));
+      const m = computeMetrics(p, d, r, machinesById);
       return {
         line,
         machines: ms.length,
@@ -33,37 +45,44 @@ function PlantSummary() {
         A: +(m.availability * 100).toFixed(1),
         P: +(m.performance * 100).toFixed(1),
         Q: +(m.quality * 100).toFixed(1),
-        good: m.goodParts,
-        total: m.totalParts,
+        good: m.good,
+        output: m.output,
       };
     });
-  }, [machines, production, machinesById]);
+  }, [machines, production, downtime, rejections, machinesById]);
 
   const topDefects = useMemo(() => {
     const map: Record<string, number> = {};
-    rejections.forEach((r) => { map[r.defect] = (map[r.defect] || 0) + r.quantity; });
+    rejections.forEach((r) => {
+      const k = r.reject_reason || "Unspecified";
+      map[k] = (map[k] || 0) + Number(r.reject_qty);
+    });
     return Object.entries(map).map(([name, qty]) => ({ name, qty })).sort((a,b) => b.qty - a.qty).slice(0, 6);
   }, [rejections]);
-
-  const totalDowntime = downtime.reduce((a, d) => a + d.minutes, 0);
 
   return (
     <>
       <TopBar title="Plant Summary" subtitle="Aggregate performance across all production lines" />
       <div className="p-6 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <KpiCard label="Plant OEE" value={pct(overall.oee)} tone={overall.oee>=0.85?"success":overall.oee>=0.6?"warning":"danger"} />
-          <KpiCard label="Total Production" value={num(overall.goodParts)} unit="good" tone="success" hint={`${num(overall.totalParts)} total`} />
-          <KpiCard label="Total Downtime" value={num(totalDowntime)} unit="min" tone="danger" />
-          <KpiCard label="Active Machines" value={machines.length} tone="info" />
+          <KpiCard label="Availability" value={pct(overall.availability)} tone="info" />
+          <KpiCard label="Performance" value={pct(overall.performance)} tone="default" />
+          <KpiCard label="Quality" value={pct(overall.quality)} tone="success" />
+          <KpiCard label="Throughput / hr" value={fix(overall.throughputPerHour,1)} unit="parts" tone="info" />
+          <KpiCard label="Units / Shift" value={num(overall.unitsPerShift)} tone="default" />
+          <KpiCard label="Lead Time" value={fix(overall.leadTimeMin,2)} unit="min/unit" tone="default" />
+          <KpiCard label="Utilization" value={pct(overall.utilization)} tone="info" />
+          <KpiCard label="Downtime %" value={pct(overall.downtimePct)} tone="danger" hint={`${num(overall.downtimeMin)} min`} />
+          <KpiCard label="Scrap %" value={pct(overall.scrapPct)} tone="warning" />
+          <KpiCard label="Good Quantity" value={num(overall.good)} tone="success" hint={`${num(overall.output)} output`} />
+          <KpiCard label="Achievement" value={pct(overall.achievement)} tone={overall.achievement>=0.9?"success":"warning"} />
         </div>
 
         <div className="panel overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-semibold">Production Lines</h3>
-              <p className="text-xs text-muted-foreground">All-time performance by line</p>
-            </div>
+          <div className="px-5 py-4 border-b border-border">
+            <h3 className="text-sm font-semibold">Production Lines</h3>
+            <p className="text-xs text-muted-foreground">All-time performance by line</p>
           </div>
           <table className="w-full text-sm">
             <thead className="text-xs uppercase tracking-wider text-muted-foreground bg-muted/40">
@@ -74,7 +93,7 @@ function PlantSummary() {
                 <th className="text-right px-5 py-3">Perf</th>
                 <th className="text-right px-5 py-3">Qual</th>
                 <th className="text-right px-5 py-3">OEE</th>
-                <th className="text-right px-5 py-3">Good / Total</th>
+                <th className="text-right px-5 py-3">Good / Output</th>
               </tr>
             </thead>
             <tbody>
@@ -88,9 +107,12 @@ function PlantSummary() {
                   <td className="px-5 py-3 text-right tabular font-semibold">
                     <span className={l.OEE>=85?"text-success":l.OEE>=60?"text-warning":"text-destructive"}>{l.OEE}%</span>
                   </td>
-                  <td className="px-5 py-3 text-right tabular text-muted-foreground">{num(l.good)} / {num(l.total)}</td>
+                  <td className="px-5 py-3 text-right tabular text-muted-foreground">{num(l.good)} / {num(l.output)}</td>
                 </tr>
               ))}
+              {lines.length === 0 && (
+                <tr><td colSpan={7} className="px-5 py-12 text-center text-muted-foreground">No machines configured</td></tr>
+              )}
             </tbody>
           </table>
         </div>

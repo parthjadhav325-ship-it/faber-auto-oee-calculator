@@ -12,7 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppSidebar } from "../components/app-sidebar";
-import { useOEE } from "../lib/oee-store";
+import { Toaster } from "../components/ui/sonner";
 
 function NotFoundComponent() {
   return (
@@ -75,8 +75,6 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const seed = useOEE((s) => s.seed);
-  useEffect(() => { seed(); }, [seed]);
   return (
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen flex w-full bg-background text-foreground">
@@ -85,6 +83,7 @@ function RootComponent() {
           <Outlet />
         </main>
       </div>
+      <Toaster />
     </QueryClientProvider>
   );
 }

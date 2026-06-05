@@ -3,8 +3,17 @@ import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { TopBar } from "@/components/top-bar";
 import { KpiCard, OEEGauge } from "@/components/kpi-card";
-import { computeOEE, num, pct, useOEE } from "@/lib/oee-store";
-import { Activity, Gauge, PackageCheck, Timer, TrendingUp, Zap } from "lucide-react";
+import {
+  computeMetrics,
+  fix,
+  num,
+  pct,
+  useDowntime,
+  useMachines,
+  useProduction,
+  useRejections,
+} from "@/lib/oee-data";
+import { Activity, Gauge, PackageCheck, Percent, Timer, TrendingUp, Zap } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [{ title: "Daily Dashboard · OEE Control" }] }),
@@ -12,33 +21,39 @@ export const Route = createFileRoute("/")({
 });
 
 function DailyDashboard() {
-  const machines = useOEE((s) => s.machines);
-  const production = useOEE((s) => s.production);
-  const downtime = useOEE((s) => s.downtime);
+  const { data: machines = [] } = useMachines();
+  const { data: production = [] } = useProduction();
+  const { data: downtime = [] } = useDowntime();
+  const { data: rejections = [] } = useRejections();
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(today);
 
   const machinesById = useMemo(() => Object.fromEntries(machines.map((m) => [m.id, m])), [machines]);
   const dayProd = useMemo(() => production.filter((p) => p.date === date), [production, date]);
   const dayDt = useMemo(() => downtime.filter((d) => d.date === date), [downtime, date]);
-  const metrics = useMemo(() => computeOEE(dayProd, machinesById), [dayProd, machinesById]);
+  const dayRj = useMemo(() => rejections.filter((r) => r.date === date), [rejections, date]);
+  const metrics = useMemo(() => computeMetrics(dayProd, dayDt, dayRj, machinesById), [dayProd, dayDt, dayRj, machinesById]);
 
   const perMachine = useMemo(() => machines.map((m) => {
-    const rows = dayProd.filter((p) => p.machineId === m.id);
-    const mm = computeOEE(rows, machinesById);
-    return { name: m.code, oee: +(mm.oee * 100).toFixed(1), a: +(mm.availability * 100).toFixed(1), p: +(mm.performance * 100).toFixed(1), q: +(mm.quality * 100).toFixed(1) };
-  }), [machines, dayProd, machinesById]);
+    const p = dayProd.filter((x) => x.machine_id === m.id);
+    const d = dayDt.filter((x) => x.machine_id === m.id);
+    const r = dayRj.filter((x) => x.machine_id === m.id);
+    const mm = computeMetrics(p, d, r, machinesById);
+    return { name: m.machine_code, OEE: +(mm.oee*100).toFixed(1), A: +(mm.availability*100).toFixed(1), P: +(mm.performance*100).toFixed(1), Q: +(mm.quality*100).toFixed(1) };
+  }), [machines, dayProd, dayDt, dayRj, machinesById]);
 
   const shiftData = useMemo(() => (["A","B","C"] as const).map((s) => {
-    const rows = dayProd.filter((p) => p.shift === s);
-    const mm = computeOEE(rows, machinesById);
-    return { shift: `Shift ${s}`, OEE: +(mm.oee * 100).toFixed(1), Throughput: +mm.throughput.toFixed(0) };
-  }), [dayProd, machinesById]);
+    const p = dayProd.filter((x) => x.shift === s);
+    const d = dayDt.filter((x) => x.shift === s);
+    const r = dayRj.filter((x) => x.shift === s);
+    const mm = computeMetrics(p, d, r, machinesById);
+    return { shift: `Shift ${s}`, OEE: +(mm.oee*100).toFixed(1), Throughput: +mm.throughputPerHour.toFixed(0) };
+  }), [dayProd, dayDt, dayRj, machinesById]);
 
-  const dtByCat = useMemo(() => {
+  const dtByReason = useMemo(() => {
     const map: Record<string, number> = {};
-    dayDt.forEach((d) => { map[d.category] = (map[d.category] || 0) + d.minutes; });
-    return Object.entries(map).map(([name, value]) => ({ name, value }));
+    dayDt.forEach((d) => { map[d.downtime_reason] = (map[d.downtime_reason] || 0) + Number(d.downtime_minutes); });
+    return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a,b)=>b.value-a.value);
   }, [dayDt]);
   const dtColors = ["var(--color-chart-1)","var(--color-chart-2)","var(--color-chart-3)","var(--color-chart-4)","var(--color-chart-5)"];
 
@@ -48,20 +63,25 @@ function DailyDashboard() {
         title="Daily Production Dashboard"
         subtitle="Real-time OEE across all machines and shifts"
         right={
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="bg-input border border-border rounded-md px-3 py-1.5 text-sm tabular"
-          />
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+            className="bg-input border border-border rounded-md px-3 py-1.5 text-sm tabular" />
         }
       />
       <div className="p-6 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard label="Good Parts" value={num(metrics.goodParts)} tone="success" icon={<PackageCheck className="size-4" />} hint={`of ${num(metrics.totalParts)} total`} />
-          <KpiCard label="Throughput" value={metrics.throughput.toFixed(1)} unit="parts/hr" tone="info" icon={<TrendingUp className="size-4" />} />
-          <KpiCard label="Runtime" value={num(metrics.runtimeMin)} unit="min" tone="default" icon={<Timer className="size-4" />} hint={`Planned ${num(metrics.plannedMin)} min`} />
-          <KpiCard label="Downtime" value={num(dayDt.reduce((a, d) => a + d.minutes, 0))} unit="min" tone="danger" icon={<Zap className="size-4" />} hint={`${dayDt.length} events`} />
+        {/* Top KPI cards — all 12 KPIs */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <KpiCard label="OEE" value={pct(metrics.oee)} tone={metrics.oee>=0.85?"success":metrics.oee>=0.6?"warning":"danger"} icon={<Gauge className="size-4" />} />
+          <KpiCard label="Availability" value={pct(metrics.availability)} tone="info" />
+          <KpiCard label="Performance" value={pct(metrics.performance)} tone="default" />
+          <KpiCard label="Quality" value={pct(metrics.quality)} tone="success" />
+          <KpiCard label="Throughput / hr" value={fix(metrics.throughputPerHour, 1)} unit="parts" tone="info" icon={<TrendingUp className="size-4" />} />
+          <KpiCard label="Units / Shift" value={num(metrics.unitsPerShift)} tone="default" hint={`${metrics.shiftCount} shifts`} />
+          <KpiCard label="Lead Time" value={fix(metrics.leadTimeMin, 2)} unit="min/unit" tone="default" icon={<Timer className="size-4" />} />
+          <KpiCard label="Machine Utilization" value={pct(metrics.utilization)} tone="info" />
+          <KpiCard label="Downtime %" value={pct(metrics.downtimePct)} tone="danger" icon={<Zap className="size-4" />} hint={`${num(metrics.downtimeMin)} min`} />
+          <KpiCard label="Scrap %" value={pct(metrics.scrapPct)} tone="warning" icon={<Percent className="size-4" />} hint={`${num(metrics.rejects)} rejected`} />
+          <KpiCard label="Good Quantity" value={num(metrics.good)} tone="success" icon={<PackageCheck className="size-4" />} hint={`of ${num(metrics.output)} output`} />
+          <KpiCard label="Production Achievement" value={pct(metrics.achievement)} tone={metrics.achievement>=0.9?"success":"warning"} hint={`vs ${num(metrics.plannedTargetParts)} target`} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
@@ -80,18 +100,22 @@ function DailyDashboard() {
               </div>
               <Gauge className="size-4 text-muted-foreground" />
             </div>
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={perMachine}>
-                <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
-                <XAxis dataKey="name" stroke="var(--color-muted-foreground)" fontSize={11} />
-                <YAxis stroke="var(--color-muted-foreground)" fontSize={11} unit="%" domain={[0, 100]} />
-                <Tooltip contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="a" name="Availability" fill="var(--color-chart-3)" radius={[2,2,0,0]} />
-                <Bar dataKey="p" name="Performance" fill="var(--color-chart-1)" radius={[2,2,0,0]} />
-                <Bar dataKey="q" name="Quality" fill="var(--color-chart-2)" radius={[2,2,0,0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {perMachine.length === 0 ? (
+              <div className="h-[280px] grid place-items-center text-sm text-muted-foreground">No machines configured</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={perMachine}>
+                  <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
+                  <XAxis dataKey="name" stroke="var(--color-muted-foreground)" fontSize={11} />
+                  <YAxis stroke="var(--color-muted-foreground)" fontSize={11} unit="%" domain={[0, 100]} />
+                  <Tooltip contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="A" name="Availability" fill="var(--color-chart-3)" radius={[2,2,0,0]} />
+                  <Bar dataKey="P" name="Performance" fill="var(--color-chart-1)" radius={[2,2,0,0]} />
+                  <Bar dataKey="Q" name="Quality" fill="var(--color-chart-2)" radius={[2,2,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
           <div className="panel p-5">
@@ -102,13 +126,13 @@ function DailyDashboard() {
               </div>
               <Activity className="size-4 text-muted-foreground" />
             </div>
-            {dtByCat.length === 0 ? (
+            {dtByReason.length === 0 ? (
               <div className="h-[280px] grid place-items-center text-sm text-muted-foreground">No downtime recorded</div>
             ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
-                  <Pie data={dtByCat} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90} paddingAngle={2}>
-                    {dtByCat.map((_, i) => <Cell key={i} fill={dtColors[i % dtColors.length]} />)}
+                  <Pie data={dtByReason} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90} paddingAngle={2}>
+                    {dtByReason.map((_, i) => <Cell key={i} fill={dtColors[i % dtColors.length]} />)}
                   </Pie>
                   <Tooltip contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -153,14 +177,16 @@ function DailyDashboard() {
             </thead>
             <tbody>
               {machines.map((m) => {
-                const rows = dayProd.filter((p) => p.machineId === m.id);
-                const mm = computeOEE(rows, machinesById);
+                const p = dayProd.filter((x) => x.machine_id === m.id);
+                const d = dayDt.filter((x) => x.machine_id === m.id);
+                const r = dayRj.filter((x) => x.machine_id === m.id);
+                const mm = computeMetrics(p, d, r, machinesById);
                 const tone = mm.oee >= 0.85 ? "bg-success" : mm.oee >= 0.6 ? "bg-warning" : "bg-destructive";
                 return (
                   <tr key={m.id} className="border-t border-border hover:bg-accent/30">
                     <td className="px-5 py-3">
-                      <div className="font-medium">{m.code}</div>
-                      <div className="text-xs text-muted-foreground">{m.name}</div>
+                      <div className="font-medium">{m.machine_code}</div>
+                      <div className="text-xs text-muted-foreground">{m.machine_name}</div>
                     </td>
                     <td className="px-5 py-3 text-muted-foreground">{m.line}</td>
                     <td className="px-5 py-3 text-right tabular">{pct(mm.availability)}</td>
@@ -170,12 +196,15 @@ function DailyDashboard() {
                     <td className="px-5 py-3 text-right">
                       <span className={`inline-flex items-center gap-1.5 text-xs ${mm.oee >= 0.85 ? "text-success" : mm.oee >= 0.6 ? "text-warning" : "text-destructive"}`}>
                         <span className={`size-2 rounded-full ${tone}`} />
-                        {mm.oee >= 0.85 ? "Optimal" : mm.oee >= 0.6 ? "Acceptable" : "Critical"}
+                        {p.length === 0 ? "No Data" : mm.oee >= 0.85 ? "Optimal" : mm.oee >= 0.6 ? "Acceptable" : "Critical"}
                       </span>
                     </td>
                   </tr>
                 );
               })}
+              {machines.length === 0 && (
+                <tr><td colSpan={7} className="px-5 py-12 text-center text-muted-foreground">No machines configured. Go to Machine Master to add some.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
