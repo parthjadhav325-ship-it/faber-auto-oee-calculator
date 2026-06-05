@@ -9,10 +9,24 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RejectionRouteImport } from './routes/rejection'
+import { Route as ProductionRouteImport } from './routes/production'
 import { Route as PlantRouteImport } from './routes/plant'
 import { Route as MonthlyRouteImport } from './routes/monthly'
+import { Route as MachinesRouteImport } from './routes/machines'
+import { Route as DowntimeRouteImport } from './routes/downtime'
 import { Route as IndexRouteImport } from './routes/index'
 
+const RejectionRoute = RejectionRouteImport.update({
+  id: '/rejection',
+  path: '/rejection',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductionRoute = ProductionRouteImport.update({
+  id: '/production',
+  path: '/production',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PlantRoute = PlantRouteImport.update({
   id: '/plant',
   path: '/plant',
@@ -23,6 +37,16 @@ const MonthlyRoute = MonthlyRouteImport.update({
   path: '/monthly',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MachinesRoute = MachinesRouteImport.update({
+  id: '/machines',
+  path: '/machines',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DowntimeRoute = DowntimeRouteImport.update({
+  id: '/downtime',
+  path: '/downtime',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -31,36 +55,88 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/downtime': typeof DowntimeRoute
+  '/machines': typeof MachinesRoute
   '/monthly': typeof MonthlyRoute
   '/plant': typeof PlantRoute
+  '/production': typeof ProductionRoute
+  '/rejection': typeof RejectionRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/downtime': typeof DowntimeRoute
+  '/machines': typeof MachinesRoute
   '/monthly': typeof MonthlyRoute
   '/plant': typeof PlantRoute
+  '/production': typeof ProductionRoute
+  '/rejection': typeof RejectionRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/downtime': typeof DowntimeRoute
+  '/machines': typeof MachinesRoute
   '/monthly': typeof MonthlyRoute
   '/plant': typeof PlantRoute
+  '/production': typeof ProductionRoute
+  '/rejection': typeof RejectionRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/monthly' | '/plant'
+  fullPaths:
+    | '/'
+    | '/downtime'
+    | '/machines'
+    | '/monthly'
+    | '/plant'
+    | '/production'
+    | '/rejection'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/monthly' | '/plant'
-  id: '__root__' | '/' | '/monthly' | '/plant'
+  to:
+    | '/'
+    | '/downtime'
+    | '/machines'
+    | '/monthly'
+    | '/plant'
+    | '/production'
+    | '/rejection'
+  id:
+    | '__root__'
+    | '/'
+    | '/downtime'
+    | '/machines'
+    | '/monthly'
+    | '/plant'
+    | '/production'
+    | '/rejection'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DowntimeRoute: typeof DowntimeRoute
+  MachinesRoute: typeof MachinesRoute
   MonthlyRoute: typeof MonthlyRoute
   PlantRoute: typeof PlantRoute
+  ProductionRoute: typeof ProductionRoute
+  RejectionRoute: typeof RejectionRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/rejection': {
+      id: '/rejection'
+      path: '/rejection'
+      fullPath: '/rejection'
+      preLoaderRoute: typeof RejectionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/production': {
+      id: '/production'
+      path: '/production'
+      fullPath: '/production'
+      preLoaderRoute: typeof ProductionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/plant': {
       id: '/plant'
       path: '/plant'
@@ -75,6 +151,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MonthlyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/machines': {
+      id: '/machines'
+      path: '/machines'
+      fullPath: '/machines'
+      preLoaderRoute: typeof MachinesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/downtime': {
+      id: '/downtime'
+      path: '/downtime'
+      fullPath: '/downtime'
+      preLoaderRoute: typeof DowntimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -87,8 +177,12 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DowntimeRoute: DowntimeRoute,
+  MachinesRoute: MachinesRoute,
   MonthlyRoute: MonthlyRoute,
   PlantRoute: PlantRoute,
+  ProductionRoute: ProductionRoute,
+  RejectionRoute: RejectionRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
