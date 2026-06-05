@@ -205,3 +205,45 @@ export const deleteRejection = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await deleteRow("Rejection_Data", Number(data.id));
   });
+
+// ===== Machine Events (Start/Stop) =====
+import { ensureSheet } from "./sheets.server";
+
+const EVENTS_SHEET = "Machine_Events";
+const EVENTS_HEADERS = ["Timestamp", "Machine_ID", "Event_Type", "Reason"];
+
+export type MachineEventRow = {
+  id: string;
+  timestamp: string; // ISO
+  machine_id: string;
+  event_type: "START" | "STOP";
+  reason: string;
+};
+
+export const listEvents = createServerFn({ method: "GET" }).handler(
+  async (): Promise<MachineEventRow[]> => {
+    const rows = await readObjects<{
+      Timestamp: string; Machine_ID: string; Event_Type: string; Reason: string;
+    }>(EVENTS_SHEET);
+    return rows.map((r) => ({
+      id: String(r._row),
+      timestamp: r.Timestamp,
+      machine_id: r.Machine_ID,
+      event_type: (r.Event_Type === "STOP" ? "STOP" : "START") as "START" | "STOP",
+      reason: r.Reason || "",
+    }));
+  },
+);
+
+export const addEvent = createServerFn({ method: "POST" })
+  .inputValidator((d: {
+    machine_id: string; event_type: "START" | "STOP"; reason?: string;
+  }) => d)
+  .handler(async ({ data }) => {
+    await ensureSheet(EVENTS_SHEET, EVENTS_HEADERS);
+    const ts = new Date().toISOString();
+    await appendRow(EVENTS_SHEET, [
+      ts, data.machine_id, data.event_type, data.reason || "",
+    ]);
+    return { timestamp: ts };
+  });

@@ -51,17 +51,35 @@ export async function updateRow(sheet: string, rowIndex: number, row: (string | 
 
 // Resolve the numeric sheetId required by deleteDimension requests.
 let sheetIdCache: Record<string, number> | null = null;
-async function getSheetId(title: string): Promise<number> {
-  if (!sheetIdCache) {
-    const meta = await gw(`/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties`);
-    sheetIdCache = {};
-    for (const s of meta.sheets ?? []) {
-      sheetIdCache[s.properties.title] = s.properties.sheetId;
-    }
+async function refreshSheetIds() {
+  const meta = await gw(`/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties`);
+  sheetIdCache = {};
+  for (const s of meta.sheets ?? []) {
+    sheetIdCache[s.properties.title] = s.properties.sheetId;
   }
-  const id = sheetIdCache[title];
+}
+async function getSheetId(title: string): Promise<number> {
+  if (!sheetIdCache) await refreshSheetIds();
+  const id = sheetIdCache![title];
   if (id === undefined) throw new Error(`Sheet "${title}" not found`);
   return id;
+}
+
+// Create the sheet (with header row) if it does not exist.
+export async function ensureSheet(title: string, headerRow: string[]) {
+  if (!sheetIdCache) await refreshSheetIds();
+  if (sheetIdCache![title] !== undefined) return;
+  await gw(`/spreadsheets/${SPREADSHEET_ID}:batchUpdate`, {
+    method: "POST",
+    body: JSON.stringify({
+      requests: [{ addSheet: { properties: { title } } }],
+    }),
+  });
+  sheetIdCache = null; // invalidate
+  await gw(
+    `/spreadsheets/${SPREADSHEET_ID}/values/${title}!A1?valueInputOption=USER_ENTERED`,
+    { method: "PUT", body: JSON.stringify({ values: [headerRow] }) },
+  );
 }
 
 export async function deleteRow(sheet: string, rowIndex: number) {
@@ -90,7 +108,14 @@ export async function deleteRow(sheet: string, rowIndex: number) {
 export async function readObjects<T extends Record<string, string>>(
   sheet: string,
 ): Promise<(T & { _row: number })[]> {
-  const rows = await readRange(`${sheet}!A1:Z`);
+  let rows: string[][] = [];
+  try {
+    rows = await readRange(`${sheet}!A1:Z`);
+  } catch (e) {
+    // Sheet doesn't exist yet — treat as empty.
+    if (String(e).includes("Unable to parse range") || String(e).includes("not found")) return [];
+    throw e;
+  }
   if (rows.length < 2) return [];
   const headers = rows[0];
   const out: (T & { _row: number })[] = [];
