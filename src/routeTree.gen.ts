@@ -19,6 +19,7 @@ import { Route as MachinesRouteImport } from './routes/machines'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ControlRouteImport } from './routes/control'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as OperatorIndexRouteImport } from './routes/operator.index'
 import { Route as OperatorMachineIdRouteImport } from './routes/operator.$machineId'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 
@@ -72,6 +73,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OperatorIndexRoute = OperatorIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => OperatorRoute,
+} as any)
 const OperatorMachineIdRoute = OperatorMachineIdRouteImport.update({
   id: '/$machineId',
   path: '/$machineId',
@@ -96,6 +102,7 @@ export interface FileRoutesByFullPath {
   '/supervisor': typeof SupervisorRoute
   '/admin/users': typeof AdminUsersRoute
   '/operator/$machineId': typeof OperatorMachineIdRoute
+  '/operator/': typeof OperatorIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -103,13 +110,13 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/machines': typeof MachinesRoute
   '/monthly': typeof MonthlyRoute
-  '/operator': typeof OperatorRouteWithChildren
   '/plant': typeof PlantRoute
   '/production': typeof ProductionRoute
   '/rejection': typeof RejectionRoute
   '/supervisor': typeof SupervisorRoute
   '/admin/users': typeof AdminUsersRoute
   '/operator/$machineId': typeof OperatorMachineIdRoute
+  '/operator': typeof OperatorIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -125,6 +132,7 @@ export interface FileRoutesById {
   '/supervisor': typeof SupervisorRoute
   '/admin/users': typeof AdminUsersRoute
   '/operator/$machineId': typeof OperatorMachineIdRoute
+  '/operator/': typeof OperatorIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -141,6 +149,7 @@ export interface FileRouteTypes {
     | '/supervisor'
     | '/admin/users'
     | '/operator/$machineId'
+    | '/operator/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -148,13 +157,13 @@ export interface FileRouteTypes {
     | '/login'
     | '/machines'
     | '/monthly'
-    | '/operator'
     | '/plant'
     | '/production'
     | '/rejection'
     | '/supervisor'
     | '/admin/users'
     | '/operator/$machineId'
+    | '/operator'
   id:
     | '__root__'
     | '/'
@@ -169,6 +178,7 @@ export interface FileRouteTypes {
     | '/supervisor'
     | '/admin/users'
     | '/operator/$machineId'
+    | '/operator/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -257,6 +267,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/operator/': {
+      id: '/operator/'
+      path: '/'
+      fullPath: '/operator/'
+      preLoaderRoute: typeof OperatorIndexRouteImport
+      parentRoute: typeof OperatorRoute
+    }
     '/operator/$machineId': {
       id: '/operator/$machineId'
       path: '/$machineId'
@@ -276,10 +293,12 @@ declare module '@tanstack/react-router' {
 
 interface OperatorRouteChildren {
   OperatorMachineIdRoute: typeof OperatorMachineIdRoute
+  OperatorIndexRoute: typeof OperatorIndexRoute
 }
 
 const OperatorRouteChildren: OperatorRouteChildren = {
   OperatorMachineIdRoute: OperatorMachineIdRoute,
+  OperatorIndexRoute: OperatorIndexRoute,
 }
 
 const OperatorRouteWithChildren = OperatorRoute._addFileChildren(
