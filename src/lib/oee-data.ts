@@ -396,3 +396,16 @@ export function downtimeFromEvents(events: MachineEvent[]): Downtime[] {
   }
   return out;
 }
+
+// Defined here (after downtimeFromEvents) to avoid forward-reference issues.
+export function useDowntime() {
+  return useQuery({
+    queryKey: ["sheets", "downtime-from-events"] as const,
+    queryFn: async (): Promise<Downtime[]> => {
+      const events = (await sheets.listEvents()) as unknown as MachineEvent[];
+      return downtimeFromEvents(events);
+    },
+    staleTime: 5_000,
+    refetchInterval: 15_000,
+  });
+}
