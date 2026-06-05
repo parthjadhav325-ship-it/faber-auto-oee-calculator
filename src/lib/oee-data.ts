@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import * as sheets from "./sheets.functions";
 
 export type Shift = "A" | "B" | "C";
 
@@ -40,170 +40,110 @@ export type Rejection = {
 
 // ===== Queries =====
 export const qk = {
-  machines: ["machines"] as const,
-  production: ["production_data"] as const,
-  downtime: ["downtime_data"] as const,
-  rejection: ["rejection_data"] as const,
+  machines: ["sheets", "machines"] as const,
+  production: ["sheets", "production"] as const,
+  downtime: ["sheets", "downtime"] as const,
+  rejection: ["sheets", "rejection"] as const,
 };
+
+const STALE = 10_000;
 
 export function useMachines() {
   return useQuery({
     queryKey: qk.machines,
-    queryFn: async (): Promise<Machine[]> => {
-      const { data, error } = await supabase
-        .from("machines")
-        .select("*")
-        .order("machine_code");
-      if (error) throw error;
-      return (data ?? []) as Machine[];
-    },
+    queryFn: () => sheets.listMachines() as Promise<Machine[]>,
+    staleTime: STALE,
   });
 }
-
 export function useProduction() {
   return useQuery({
     queryKey: qk.production,
-    queryFn: async (): Promise<Production[]> => {
-      const { data, error } = await supabase
-        .from("production_data")
-        .select("*")
-        .order("date", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as Production[];
-    },
+    queryFn: () => sheets.listProduction() as Promise<Production[]>,
+    staleTime: STALE,
   });
 }
-
 export function useDowntime() {
   return useQuery({
     queryKey: qk.downtime,
-    queryFn: async (): Promise<Downtime[]> => {
-      const { data, error } = await supabase
-        .from("downtime_data")
-        .select("*")
-        .order("date", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as Downtime[];
-    },
+    queryFn: () => sheets.listDowntime() as Promise<Downtime[]>,
+    staleTime: STALE,
   });
 }
-
 export function useRejections() {
   return useQuery({
     queryKey: qk.rejection,
-    queryFn: async (): Promise<Rejection[]> => {
-      const { data, error } = await supabase
-        .from("rejection_data")
-        .select("*")
-        .order("date", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as Rejection[];
-    },
+    queryFn: () => sheets.listRejection() as Promise<Rejection[]>,
+    staleTime: STALE,
   });
 }
 
-// ===== Mutations =====
 function inv(qc: ReturnType<typeof useQueryClient>, keys: readonly (readonly string[])[]) {
   for (const k of keys) qc.invalidateQueries({ queryKey: k });
 }
 
+// ===== Mutations =====
 export function useUpsertMachine() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (
-      row: Omit<Machine, "id"> & { id?: string }
-    ) => {
-      if (row.id) {
-        const { id, ...rest } = row;
-        const { error } = await supabase.from("machines").update(rest).eq("id", id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("machines").insert(row);
-        if (error) throw error;
-      }
-    },
+    mutationFn: (row: Omit<Machine, "id"> & { id?: string }) =>
+      sheets.saveMachine({ data: row }),
     onSuccess: () => inv(qc, [qk.machines]),
   });
 }
-
 export function useDeleteMachine() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("machines").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => inv(qc, [qk.machines, qk.production, qk.downtime, qk.rejection]),
+    mutationFn: (id: string) => sheets.deleteMachine({ data: { id } }),
+    onSuccess: () => inv(qc, [qk.machines]),
   });
 }
-
 export function useAddProduction() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (row: Omit<Production, "id">) => {
-      const { error } = await supabase.from("production_data").insert(row);
-      if (error) throw error;
-    },
+    mutationFn: (row: Omit<Production, "id">) =>
+      sheets.addProduction({ data: row }),
     onSuccess: () => inv(qc, [qk.production]),
   });
 }
-
 export function useDeleteProduction() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("production_data").delete().eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: (id: string) => sheets.deleteProduction({ data: { id } }),
     onSuccess: () => inv(qc, [qk.production]),
   });
 }
-
 export function useAddDowntime() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (row: Omit<Downtime, "id">) => {
-      const { error } = await supabase.from("downtime_data").insert(row);
-      if (error) throw error;
-    },
+    mutationFn: (row: Omit<Downtime, "id">) =>
+      sheets.addDowntime({ data: row }),
     onSuccess: () => inv(qc, [qk.downtime]),
   });
 }
-
 export function useDeleteDowntime() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("downtime_data").delete().eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: (id: string) => sheets.deleteDowntime({ data: { id } }),
     onSuccess: () => inv(qc, [qk.downtime]),
   });
 }
-
 export function useAddRejection() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (row: Omit<Rejection, "id">) => {
-      const { error } = await supabase.from("rejection_data").insert(row);
-      if (error) throw error;
-    },
+    mutationFn: (row: Omit<Rejection, "id">) =>
+      sheets.addRejection({ data: { ...row } }),
     onSuccess: () => inv(qc, [qk.rejection]),
   });
 }
-
 export function useDeleteRejection() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("rejection_data").delete().eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: (id: string) => sheets.deleteRejection({ data: { id } }),
     onSuccess: () => inv(qc, [qk.rejection]),
   });
 }
 
-// ===== KPI math =====
+// ===== KPI math (unchanged) =====
 export type Metrics = {
   plannedMin: number;
   runtimeMin: number;
@@ -231,7 +171,7 @@ export function computeMetrics(
   prod: Production[],
   downtime: Downtime[],
   rejection: Rejection[],
-  machinesById: Record<string, Machine>
+  machinesById: Record<string, Machine>,
 ): Metrics {
   const key = (d: string, s: string, m: string) => `${d}|${s}|${m}`;
   const dtByKey = new Map<string, number>();
@@ -244,12 +184,8 @@ export function computeMetrics(
     const k = key(r.date, r.shift, r.machine_id);
     rjByKey.set(k, (rjByKey.get(k) || 0) + Number(r.reject_qty));
   }
-  let plannedMin = 0,
-    runtimeMin = 0,
-    output = 0,
-    rejects = 0,
-    idealParts = 0,
-    plannedTargetParts = 0;
+  let plannedMin = 0, runtimeMin = 0, output = 0, rejects = 0,
+    idealParts = 0, plannedTargetParts = 0;
   const shifts = new Set<string>();
   for (const p of prod) {
     const m = machinesById[p.machine_id];
@@ -280,26 +216,11 @@ export function computeMetrics(
   const scrapPct = output > 0 ? rejects / output : 0;
   const achievement = plannedTargetParts > 0 ? good / plannedTargetParts : 0;
   return {
-    plannedMin,
-    runtimeMin,
-    downtimeMin,
-    output,
-    rejects,
-    good,
-    idealParts,
-    plannedTargetParts,
-    shiftCount: shifts.size,
-    availability,
-    performance,
-    quality,
-    oee,
-    throughputPerHour,
-    unitsPerShift,
-    leadTimeMin,
-    utilization,
-    downtimePct,
-    scrapPct,
-    achievement,
+    plannedMin, runtimeMin, downtimeMin, output, rejects, good,
+    idealParts, plannedTargetParts, shiftCount: shifts.size,
+    availability, performance, quality, oee,
+    throughputPerHour, unitsPerShift, leadTimeMin,
+    utilization, downtimePct, scrapPct, achievement,
   };
 }
 
