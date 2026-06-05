@@ -1,18 +1,19 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Activity,
-  BarChart3,
   Calendar,
   Factory,
   Gauge,
   PackagePlus,
-  PieChart,
+  Power,
   Settings2,
-  TimerOff,
   XOctagon,
 } from "lucide-react";
 
 const nav = [
+  { group: "Operator", items: [
+    { to: "/control", label: "Machine Control", icon: Power },
+  ]},
   { group: "Operations", items: [
     { to: "/", label: "Daily Dashboard", icon: Gauge },
     { to: "/monthly", label: "Monthly Dashboard", icon: Calendar },
@@ -20,7 +21,6 @@ const nav = [
   ]},
   { group: "Data Entry", items: [
     { to: "/production", label: "Production Entry", icon: PackagePlus },
-    { to: "/downtime", label: "Downtime Entry", icon: TimerOff },
     { to: "/rejection", label: "Rejection Entry", icon: XOctagon },
   ]},
   { group: "Master", items: [
