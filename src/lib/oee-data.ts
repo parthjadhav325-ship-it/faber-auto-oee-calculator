@@ -228,3 +228,137 @@ export const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
 export const num = (n: number) =>
   Number.isFinite(n) ? Math.round(n).toLocaleString() : "—";
 export const fix = (n: number, d = 1) => (Number.isFinite(n) ? n.toFixed(d) : "—");
+
+// ===== Machine Events =====
+export const DOWNTIME_REASONS = [
+  "Mechanical Breakdown",
+  "Electrical Breakdown",
+  "Tool Change",
+  "Setup Change",
+  "Material Shortage",
+  "Quality Issue",
+  "No Operator",
+  "Power Failure",
+  "Preventive Maintenance",
+  "Planned Shutdown",
+  "Other",
+] as const;
+
+export type MachineEvent = {
+  id: string;
+  timestamp: string;
+  machine_id: string;
+  event_type: "START" | "STOP";
+  reason: string;
+};
+
+export const eventsKey = ["sheets", "events"] as const;
+
+export function useEvents() {
+  return useQuery({
+    queryKey: eventsKey,
+    queryFn: () => sheets.listEvents() as Promise<MachineEvent[]>,
+    staleTime: 5_000,
+    refetchInterval: 15_000,
+  });
+}
+
+export function useAddEvent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (row: { machine_id: string; event_type: "START" | "STOP"; reason?: string }) =>
+      sheets.addEvent({ data: row }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: eventsKey }),
+  });
+}
+
+export type MachineEventMetrics = {
+  status: "RUNNING" | "STOPPED" | "UNKNOWN";
+  lastEventAt: string | null;
+  runtimeMin: number;
+  downtimeMin: number;
+  availability: number;
+  failures: number;
+  mttrMin: number; // mean time to repair (avg downtime duration)
+  mtbfMin: number; // mean time between failures (avg run duration before a stop)
+  byReason: { reason: string; minutes: number }[];
+};
+
+// Derive runtime/downtime/MTTR/MTBF from chronological events for a machine
+// `until` defaults to now — ongoing intervals are counted up to that point.
+export function metricsFromEvents(
+  events: MachineEvent[],
+  opts?: { from?: Date; until?: Date },
+): MachineEventMetrics {
+  const until = opts?.until ?? new Date();
+  const from = opts?.from;
+  const sorted = [...events].sort((a, b) =>
+    a.timestamp < b.timestamp ? -1 : 1,
+  );
+  let runtimeMs = 0;
+  let downtimeMs = 0;
+  const runDurations: number[] = [];
+  const downDurations: number[] = [];
+  const reasonMs = new Map<string, number>();
+  let last: MachineEvent | null = null;
+
+  const clip = (a: Date, b: Date): number => {
+    let s = a.getTime();
+    let e = b.getTime();
+    if (from) s = Math.max(s, from.getTime());
+    e = Math.min(e, until.getTime());
+    return Math.max(0, e - s);
+  };
+
+  for (const ev of sorted) {
+    if (last) {
+      const ms = clip(new Date(last.timestamp), new Date(ev.timestamp));
+      if (last.event_type === "START") {
+        runtimeMs += ms;
+        if (ev.event_type === "STOP") runDurations.push(ms);
+      } else {
+        downtimeMs += ms;
+        if (ev.event_type === "START") downDurations.push(ms);
+        const r = last.reason || "Other";
+        reasonMs.set(r, (reasonMs.get(r) || 0) + ms);
+      }
+    }
+    last = ev;
+  }
+  // Tail interval up to `until`
+  if (last) {
+    const ms = clip(new Date(last.timestamp), until);
+    if (last.event_type === "START") runtimeMs += ms;
+    else {
+      downtimeMs += ms;
+      const r = last.reason || "Other";
+      reasonMs.set(r, (reasonMs.get(r) || 0) + ms);
+    }
+  }
+
+  const runtimeMin = runtimeMs / 60000;
+  const downtimeMin = downtimeMs / 60000;
+  const total = runtimeMin + downtimeMin;
+  const availability = total > 0 ? runtimeMin / total : 0;
+  const mttrMin = downDurations.length > 0
+    ? downDurations.reduce((s, n) => s + n, 0) / downDurations.length / 60000
+    : 0;
+  const mtbfMin = runDurations.length > 0
+    ? runDurations.reduce((s, n) => s + n, 0) / runDurations.length / 60000
+    : 0;
+  const byReason = [...reasonMs.entries()]
+    .map(([reason, ms]) => ({ reason, minutes: ms / 60000 }))
+    .sort((a, b) => b.minutes - a.minutes);
+
+  return {
+    status: last ? (last.event_type === "START" ? "RUNNING" : "STOPPED") : "UNKNOWN",
+    lastEventAt: last ? last.timestamp : null,
+    runtimeMin,
+    downtimeMin,
+    availability,
+    failures: downDurations.length,
+    mttrMin,
+    mtbfMin,
+    byReason,
+  };
+}
