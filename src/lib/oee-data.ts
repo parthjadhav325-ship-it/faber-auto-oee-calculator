@@ -62,11 +62,17 @@ export function useProduction() {
     staleTime: STALE,
   });
 }
+// Derive downtime rows from Machine_Events (STOP → next START pairs).
+// Kept under the same hook name so existing dashboards continue to work.
 export function useDowntime() {
   return useQuery({
-    queryKey: qk.downtime,
-    queryFn: () => sheets.listDowntime() as Promise<Downtime[]>,
-    staleTime: STALE,
+    queryKey: ["sheets", "downtime-from-events"] as const,
+    queryFn: async (): Promise<Downtime[]> => {
+      const events = (await sheets.listEvents()) as unknown as MachineEvent[];
+      return downtimeFromEvents(events);
+    },
+    staleTime: 5_000,
+    refetchInterval: 15_000,
   });
 }
 export function useRejections() {
